@@ -1,8 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # bitcoind_ Munin plugin for Bitcoin Server Variables
 #
 # by Mike Koss
 # Feb 14, 2012, MIT License
+#
+# modified by acidsploit@github
+# Jan 03, 2015
 #
 # You need to be able to authenticate to the bitcoind server to issue rpc's.
 # This plugin supporst 2 ways to do that:
@@ -52,30 +55,15 @@ def main():
     command = sys.argv[1] if len(sys.argv) > 1 else None
     request_labels = {'balance': ('Wallet Balance', 'BTC'),
                       'connections': ('Peer Connections', 'Connections'),
-                      'fees': ("Tip Offered", "BTC"),
+                      'relayfee': ("relayfee", "BTC"),
+                      'paytxfee': ("paytxfee", "BTC"),
                       'transactions': ("Transactions", "Transactions",
                                        ('confirmed', 'waiting')),
                       'block_age': ("Last Block Age", "Seconds"),
-                      'difficulty': ("Difficulty", ""),
+                      'difficulty': ("Network Difficulty", "Difficulty"),
+                      'score': ("IP Score Value", "Score"),
+                      'blocks': ("Number of Blocks", "Blocks"),
                       }
-    labels = request_labels[request_var]
-    if len(labels) < 3:
-        line_labels = [request_var]
-    else:
-        line_labels = labels[2]
-
-    if command == 'suggest':
-        for var_name in request_labels.keys():
-            print var_name
-        return
-
-    if command == 'config':
-        print 'graph_category bitcoin'
-        print 'graph_title Bitcoin %s' % labels[0]
-        print 'graph_vlabel %s' % labels[1]
-        for label in line_labels:
-            print '%s.label %s' % (label, label)
-        return
 
     # Munin should send connection options via environment vars
     bitcoin_options = get_env_options('rpcconnect', 'rpcport', 'rpcuser', 'rpcpassword')
@@ -109,17 +97,57 @@ def main():
         info['block_age'] = int(time.time()) - info['time']
         info['confirmed'] = len(info['tx'])
 
-    if request_var in ('fees', 'transactions'):
+    if request_var in ('fees', 'paytxfee', 'relayfee', 'transactions'):
         (memory_pool, error) = bitcoin.getrawmempool()
         if memory_pool:
             info['waiting'] = len(memory_pool)
+
+    if request_var in ('score'):
+        (info, error) = bitcoin.getnetworkinfo()
+        if info:
+	    info['score'] = []
+	    #print "%s\n" % (info)
+	    for localaddress in info['localaddresses']:
+		#print localaddress
+		info['score'].append([re.sub(r'(\.)', '-' , localaddress['address']), localaddress['score']])
 
     if command == 'autoconf':
         print 'yes'
         return
 
+    labels = request_labels[request_var]
+    if len(labels) < 3:
+        line_labels = [request_var]
+    else:
+        line_labels = labels[2]
+
+    if command == 'suggest':
+        for var_name in request_labels.keys():
+            print var_name
+        return
+
+    if command == 'config':
+        print 'graph_category bitcoind'
+        print 'graph_title Bitcoin %s' % labels[0]
+        print 'graph_vlabel %s' % labels[1]
+        for label in line_labels:
+	    if label in ('paytxfee', 'relayfee'):
+		print "graph_args --base 1000 -l 0"
+           
+	    if label in ('score'):
+		for value in info[label]:
+                    print "%s.label %s" % (value[0], value[0])
+	    else:
+	        print '%s.label %s' % (label, label)
+        return
+    
+
     for label in line_labels:
-        print "%s.value %s" % (label, info[label])
+        if label in ('score'):
+	    for value in info[label]:
+		print "%s.value %s" % (value[0], value[1])	
+	else:
+	    print "%s.value %s" % (label, info[label])
 
 
 def parse_conf(filename):
@@ -239,4 +267,5 @@ def get_json_url(url):
 
 if __name__ == "__main__":
     main()
+
 
