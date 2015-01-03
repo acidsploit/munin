@@ -146,7 +146,7 @@ def main():
         if label in ('score'):
 	    for value in info[label]:
 		print "%s.value %s" % (value[0], value[1])	
-	else:
+        else:
 	    print "%s.value %s" % (label, info[label])
 
 
