@@ -96,7 +96,7 @@ def main():
         (info, error) = bitcoin.getblock(info)
         info['block_age'] = int(time.time()) - info['time']
         info['confirmed'] = len(info['tx'])
-
+    # TODO: Double check before removing 'fees'
     if request_var in ('fees', 'paytxfee', 'relayfee', 'transactions'):
         (memory_pool, error) = bitcoin.getrawmempool()
         if memory_pool:
